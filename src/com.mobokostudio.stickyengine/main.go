@@ -4,10 +4,10 @@ import (
 	"fmt"
 	//	"com.mobokostudio.engine/util"
 	//	"com.mobokostudio.engine/samples"
-	"github.com/op/go-logging"
+	//	"github.com/op/go-logging"
 )
 
-var log = logging.MustGetLogger("example")
+//var log = logging.MustGetLogger("example")
 
 func init() {
 	start_process()
@@ -24,7 +24,9 @@ func start_process() {
 			fmt.Println(str)
 		}
 	}()
-	
+
+	startHTTP()
+
 	//	util.PrintDir(".")
 	//
 	//	fmt.Println(util.GetFileData("src/com.mobokostudio.engine/app.yaml"))
