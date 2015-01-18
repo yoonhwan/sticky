@@ -14,7 +14,7 @@ import (
 	"regexp"
 )
 
-var DEBUG = false //true
+var DEBUG = false
 var postgresHost = "http://54.65.41.121/query"
 var errorStatus = false
 var validPath = regexp.MustCompile("^/([a-zA-Z0-9]+)$")
@@ -33,19 +33,20 @@ func LOGDF(w http.ResponseWriter, format string, v ...interface{}) {
 }
 
 var function_map = map[string]func(http.ResponseWriter, *http.Request){
-	"userLogin":    userLogin,
-	"saveLocation": saveLocation,
-	"loadLocation": loadLocation,
+	"userLogin":     userLogin,
+	"saveLocation":  saveLocation,
+	"loadLocation":  loadLocation,
+	"clearLocation": clearLocation,
 }
 
 func startHTTP() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if errorStatus != true {
-				fmt.Fprintln(w, "SUCCESS")
+				LOGD(w, "SUCCESS")
 
 			} else {
-				fmt.Fprintln(w, "ERROR")
+				LOGD(w, "ERROR")
 			}
 		}()
 
@@ -200,7 +201,7 @@ func loadLocation(w http.ResponseWriter, r *http.Request) {
 		//data={\"lat\":%f,\"lon\":%f,\"timestamp\":%f,\"desc\":\"%@\",\"user\":\"%@\"}
 		limit := 100
 		LOGDF(w, "user:%s location:(%f,%f) timestamp:%f desc:%s\n", dat["user"], dat["lat"], dat["lon"], dat["timestamp"], dat["desc"])
-		var query = fmt.Sprintf("SELECT st_astext(the_geom) as Point FROM users, location_trace WHERE users.name='%s' AND users.id=location_trace.user_id LIMIT %d", dat["user"], limit)
+		var query = fmt.Sprintf("SELECT ST_X(the_geom) as lat, ST_Y(the_geom) as lon, st_astext(the_geom) as Point FROM users, location_trace WHERE users.name='%s' AND users.id=location_trace.user_id LIMIT %d", dat["user"], limit)
 		LOGDF(w, "query = %s\n", query)
 		var requestBody = fmt.Sprintf("query=%s", query)
 
@@ -210,7 +211,9 @@ func loadLocation(w http.ResponseWriter, r *http.Request) {
 
 			//			Name string
 			//			User_id   int
-			Point string
+			//			Point string
+			Lat float64
+			Lon float64
 		}
 
 		keysBody := []byte(responseBody)
@@ -218,7 +221,85 @@ func loadLocation(w http.ResponseWriter, r *http.Request) {
 		if err := json.Unmarshal(keysBody, &keys); err != nil {
 			panic(err)
 		}
-		LOGDF(w, "output = %#v \n", keys)
+		//LOGDF(w, "output = %#v \n", keys)
+
+		var output string = "["
+		for index, element := range keys {
+			LOGDF(w, "%v\n", element)
+			output = fmt.Sprintf("%s{\"lat\":%f,\"lon\":%f}", output, element.Lat, element.Lon)
+
+			if index == len(keys)-1 {
+				break
+			}
+			output = fmt.Sprintf("%s,", output)
+		}
+		output = fmt.Sprintf("%s]", output)
+		fmt.Fprintln(w, string(output))
+
+	}
+
+}
+
+func clearLocation(w http.ResponseWriter, r *http.Request) {
+	c := appengine.NewContext(r)
+	u := user.Current(c)
+
+	var data string
+	if r.Method == "POST" {
+		data = r.FormValue("data")
+		LOGDF(w, "POST = ", data)
+
+	} else if DEBUG && r.Method == "GET" {
+		data = r.FormValue("data")
+		LOGD(w, "GET = ")
+	}
+
+	if u == nil && len(data) > 0 {
+		byt := []byte(data)
+		var dat map[string]interface{}
+		if err := json.Unmarshal(byt, &dat); err != nil {
+			panic(err)
+		}
+
+		//data={\"lat\":%f,\"lon\":%f,\"timestamp\":%f,\"desc\":\"%@\",\"user\":\"%@\"}
+
+		var query = fmt.Sprintf("SELECT * FROM users WHERE name='%s'", dat["user"])
+		LOGDF(w, "query = %s\n", query)
+		var requestBody = fmt.Sprintf("query=%s", query)
+
+		responseBody := requestHttp(requestBody, w, c)
+
+		type PublicKey struct {
+			Id   int
+			Name string
+		}
+		keysBody := []byte(responseBody)
+		var keys []PublicKey
+		if err := json.Unmarshal(keysBody, &keys); err != nil {
+			panic(err)
+		}
+
+		if len(keys) > 0 {
+			var query = fmt.Sprintf("DELETE FROM location_trace WHERE user_id=%d", keys[0].Id)
+			LOGDF(w, "query = %s\n", query)
+			var requestBody = fmt.Sprintf("query=%s", query)
+
+			responseBody := requestHttp(requestBody, w, c)
+
+			byt = []byte(responseBody)
+			if err := json.Unmarshal(byt, &dat); err != nil {
+				panic(err)
+			}
+
+			var errcode int
+			errcode = int(dat["errcode"].(float64))
+
+			if errcode != 0 {
+				errorStatus = true
+			} else {
+				LOGD(w, "register success")
+			}
+		}
 	}
 
 }
