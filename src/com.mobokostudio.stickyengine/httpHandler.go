@@ -199,9 +199,9 @@ func loadLocation(w http.ResponseWriter, r *http.Request) {
 		}
 
 		//data={\"lat\":%f,\"lon\":%f,\"timestamp\":%f,\"desc\":\"%@\",\"user\":\"%@\"}
-		limit := 100
-		LOGDF(w, "user:%s location:(%f,%f) timestamp:%f desc:%s\n", dat["user"], dat["lat"], dat["lon"], dat["timestamp"], dat["desc"])
-		var query = fmt.Sprintf("SELECT ST_X(the_geom) as lat, ST_Y(the_geom) as lon, st_astext(the_geom) as Point FROM users, location_trace WHERE users.name='%s' AND users.id=location_trace.user_id LIMIT %d", dat["user"], limit)
+		LOGDF(w, "user:%s location:(%f,%f) timestamp:%f desc:%s\n", dat["user"], dat["lat"], dat["lon"], dat["timestamp"], dat["desc"], dat["limit"])
+		
+		var query = fmt.Sprintf("SELECT location_trace.id, ST_X(the_geom) as lat, ST_Y(the_geom) as lon, st_astext(the_geom) as Point FROM users, location_trace WHERE users.name='%s' AND users.id=location_trace.user_id ORDER BY id DESC LIMIT %d", dat["user"], int(dat["limit"].(float64)))
 		LOGDF(w, "query = %s\n", query)
 		var requestBody = fmt.Sprintf("query=%s", query)
 
